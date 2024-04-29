@@ -1571,6 +1571,7 @@ def save_zarr(tasks, store: str, shape: tuple, resolution: tuple, mip: int, dtyp
 
         yield task
 
+
 @main.command('evaluate-segmentation')
 @click.option("--segmentation-chunk-name",
               "-s",
@@ -1580,19 +1581,22 @@ def save_zarr(tasks, store: str, shape: tuple, resolution: tuple, mip: int, dtyp
 @click.option("--groundtruth-chunk-name",
               "-g",
               type=str,
-              default="groundtruth")
+              default="groundtruth",
+              help="chunk name of ground truth")
 @click.option('--output', '-o',
-    type=str, default='seg_score',
-    help='segmentation evaluation result name.')
+              type=str,
+              default='seg_score',
+              help='segmentation evaluation result name.')
 @operator
-def evaluate_segmenation(tasks, segmentation_chunk_name,
-                         groundtruth_chunk_name, output):
+def evaluate_segmentation(tasks, segmentation_chunk_name,
+                          groundtruth_chunk_name, output):
     """Evaluate segmentation by split/merge error.
     """
     for task in tasks:
         if task is not None:
             seg = Segmentation(task[segmentation_chunk_name])
             groundtruth = Segmentation(task[groundtruth_chunk_name])
+            print(f'evaluating segmentation: {segmentation_chunk_name} vs {groundtruth_chunk_name}...')
             task[output] = seg.evaluate(groundtruth)
         yield task
 
