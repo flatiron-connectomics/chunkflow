@@ -234,6 +234,13 @@ def load_chunk_or_volume(file_path: str, *arg, **kwargs):
     elif file_path.endswith('.npy'):
         arr = np.loads(file_path)
         return Chunk(array=arr)
+    elif file_path.endswith('.tif') or file_path.endswith('.tiff') or \
+            file_path.endswith('.png'):
+        from skimage.io import imread
+        arr = imread(file_path)
+        if arr.ndim == 2:
+            arr = arr[np.newaxis, ...]
+        return Chunk(array=arr)
     elif 'file://' in file_path:
         # Neuroglancer Precomputed images
         if '#' in file_path:

@@ -373,7 +373,7 @@ emitRGB(vec3(toNormalized(getDataValue(0)),
                 name, layer_kwargs = parse_selected_args(name)
                 data = datas[name]
                 layer_args = (viewer_state, name, data)
-                breakpoint()
+                # breakpoint()
                 
                 if data is None:
                     continue
