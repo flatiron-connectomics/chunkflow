@@ -171,12 +171,12 @@ def _fill_missing_frames(
 
 
 class Chunk(NDArrayOperatorsMixin):
-    def __init__(self, array: np.ndarray, 
-            voxel_offset: Cartesian = None, 
+    def __init__(self, array: np.ndarray,
+            voxel_offset: Cartesian = None,
             voxel_size: Cartesian = None,
             layer_type: str = None):
         """chunk of a volume
-    
+
         a chunk of big array with offset
         implementation using numpy `dispatch <https://docs.scipy.org/doc/numpy/user/basics.dispatch.html#module-numpy.doc.dispatch>`_.
         and `examples <https://docs.scipy.org/doc/numpy/user/basics.dispatch.html#module-numpy.doc.dispatch>`_.
@@ -186,8 +186,8 @@ class Chunk(NDArrayOperatorsMixin):
             voxel_offset (Cartesian, optional): voxel offset. Defaults to None.
             voxel_size (Cartesian, optional): voxel size. Defaults to None.
             type (str, optional): type of chunk. [None, image, segmentation, probability_map, affinity_map, unknown]. Defaults to None.
-        
-        Return: 
+
+        Return:
             a new chunk with array data and global offset
         """
         if array.ndim == 2:
@@ -202,7 +202,7 @@ class Chunk(NDArrayOperatorsMixin):
                 voxel_offset = array.voxel_offset
             else:
                 voxel_offset = Cartesian(0, 0, 0)
-        
+
         if voxel_offset is not None:
             if len(voxel_offset) == 4:
                 assert voxel_offset[0] == 0
@@ -219,9 +219,9 @@ class Chunk(NDArrayOperatorsMixin):
         if voxel_size is not None:
             assert len(voxel_size) == 3
             assert np.all([vs > 0 for vs in voxel_size])
-        
+
         if layer_type is not None:
-            self.layer_type = layer_type 
+            self.layer_type = layer_type
         else:
             # best guess
             if self.is_image:
@@ -249,9 +249,9 @@ class Chunk(NDArrayOperatorsMixin):
     # One might also consider adding the built-in list type to this
     # list, to support operations like np.add(array_like, list)
     _HANDLED_TYPES = (np.ndarray, Number)
-    
+
     @classmethod
-    def from_array(cls, array: np.ndarray, bbox: BoundingBox, 
+    def from_array(cls, array: np.ndarray, bbox: BoundingBox,
             voxel_size: Optional[tuple] = None):
         """
         :param array: ndarray data
@@ -260,7 +260,7 @@ class Chunk(NDArrayOperatorsMixin):
         :return: construct a new Chunk
         """
         return cls(array, voxel_offset=bbox.minpt, voxel_size=voxel_size)
-    
+
     @classmethod
     def from_bbox(cls, bbox: BoundingBox, dtype: type = np.uint8,
             pattern: str='zero',
@@ -280,8 +280,8 @@ class Chunk(NDArrayOperatorsMixin):
         size = bbox.maxpt - bbox.minpt
         return cls.create(size=size, dtype=dtype, voxel_offset=bbox.minpt,
             voxel_size=voxel_size, pattern=pattern)
-    
-    def connected_component(self, threshold: float = None, 
+
+    def connected_component(self, threshold: float = None,
                             connectivity: int = 6):
         """threshold the map chunk and get connected components."""
         if not self.is_segmentation and threshold is not None:
@@ -294,7 +294,7 @@ class Chunk(NDArrayOperatorsMixin):
 
     @classmethod
     def create(cls, size: Cartesian = Cartesian(64, 64, 64),
-               dtype: type = np.uint8, 
+               dtype: type = np.uint8,
                voxel_offset: Cartesian = Cartesian(0, 0, 0),
                voxel_size: Cartesian = None,
                pattern: str = 'sin',
@@ -324,7 +324,7 @@ class Chunk(NDArrayOperatorsMixin):
         if pattern == 'zero':
             arr = np.zeros(size, dtype=dtype)
         elif pattern == 'sin':
-            ix, iy, iz = np.meshgrid(*[np.linspace(0, 1, n) for 
+            ix, iy, iz = np.meshgrid(*[np.linspace(0, 1, n) for
                                        n in size[-3:]], indexing='ij')
             arr = np.abs(np.sin(4 * (ix + iy + iz)))
             if len(size) == 4:
@@ -353,7 +353,7 @@ class Chunk(NDArrayOperatorsMixin):
             raise NotImplementedError(f'do not support the pattern: {pattern}')
 
         return cls(arr, voxel_offset=voxel_offset, voxel_size=voxel_size)
-    
+
     @classmethod
     def from_tif(cls, file_name: str,
             bbox: BoundingBox | str = None,
@@ -478,7 +478,7 @@ class Chunk(NDArrayOperatorsMixin):
             print(f'{len(missing_frames)} missing frames... filling with {missing_value}')
             _fill_missing_frames(arr, missing_frames, missing_value, verbose=verbose)
         return cls(arr, voxel_offset=chunk_offset, voxel_size=voxel_size, layer_type=layer_type)
-    
+
     def to_tif(
             self,
             file_name: str = None,
@@ -498,11 +498,11 @@ class Chunk(NDArrayOperatorsMixin):
             # visualization in float32 is not working correctly in ImageJ
             # this might not work correctly if you want to save the image as it is!
             print(yellow('transforming data type from float32 to uint8'))
-            img = self.array*255 
+            img = self.array*255
             img = img.astype( np.uint8 )
         else:
             img = self.array
-        
+
         if self.ndim == 3:
             axes = 'ZYX'
         elif self.ndim == 4:
@@ -560,12 +560,12 @@ class Chunk(NDArrayOperatorsMixin):
 
         file_name = os.path.expanduser(file_name)
         assert os.path.exists(file_name), f'the file do not exist: {file_name}'
-        
+
         if cutout_start is not None and cutout_size is not None:
             cutout_stop = tuple(t+s for t, s in zip(cutout_start, cutout_size))
 
         if not h5py.is_hdf5(file_name):
-            assert cutout_start is not None 
+            assert cutout_start is not None
             assert cutout_stop is not None
             bbox = BoundingBox.from_list([*cutout_start, *cutout_stop])
             file_name += f'{bbox.string}.h5'
@@ -585,7 +585,7 @@ class Chunk(NDArrayOperatorsMixin):
                         dataset_path = key
                         break
             dset = f[dataset_path]
-            if voxel_offset is None: 
+            if voxel_offset is None:
                 if 'voxel_offset' in f:
                     voxel_offset = Cartesian(*f['voxel_offset'])
                 else:
@@ -616,11 +616,11 @@ class Chunk(NDArrayOperatorsMixin):
                 cutout_size = Cartesian.from_collection(cutout_size)
             if cutout_stop is None:
                 cutout_stop = tuple(t+s for t, s in zip(cutout_start, cutout_size))
-            
+
             for c, v in zip(cutout_start, voxel_offset):
                 assert c >= v, \
                     f'can only cutout after the global voxel offset, cutout start: {cutout_start}, but get {voxel_offset}. \n file name: {file_name}'
-            
+
             assert len(cutout_start) == 3
             assert len(cutout_stop) == 3
             if channels is None:
@@ -635,22 +635,22 @@ class Chunk(NDArrayOperatorsMixin):
                     cutout_start[1]-voxel_offset[1]:cutout_stop[1]-voxel_offset[1],
                     cutout_start[2]-voxel_offset[2]:cutout_stop[2]-voxel_offset[2],
                 ]
-                    
-        
+
+
         print(f"""read from HDF5 file: {file_name} and start with {cutout_start}, \
 ends with {cutout_stop}, size is {cutout_size}, voxel size is {voxel_size}.""")
         arr = np.asarray(dset)
         if arr.dtype == np.dtype('<f4'):
             arr = arr.astype('float32')
         elif arr.dtype == np.dtype('<f8'):
-            arr = arr.astype('float64') 
+            arr = arr.astype('float64')
 
         print(f'new chunk voxel offset: {cutout_start}')
         return cls(arr, voxel_offset=cutout_start, voxel_size=voxel_size, layer_type=layer_type)
 
-    def to_h5(self, file_name: str, with_offset: bool=True, 
+    def to_h5(self, file_name: str, with_offset: bool=True,
                 chunk_size: Union[Cartesian, tuple] = (8,8,8),
-                with_unique: bool= True, 
+                with_unique: bool= True,
                 compression="gzip",
                 voxel_size: tuple = None):
         """
@@ -699,10 +699,10 @@ ends with {cutout_stop}, size is {cutout_size}, voxel size is {voxel_size}.""")
 
     def __array__(self):
         return self.array
-    
+
     def __array_ufunc__(self, ufunc, method, *inputs, **kwargs):
         """
-        example reference: 
+        example reference:
         https://docs.scipy.org/doc/numpy/reference/generated/numpy.lib.mixins.NDArrayOperatorsMixin.html?highlight=__array_ufunc__
         """
         out = kwargs.get('out', ())
@@ -722,7 +722,7 @@ ends with {cutout_stop}, size is {cutout_size}, voxel size is {voxel_size}.""")
                 x.array if isinstance(x, Chunk) else x
                 for x in out)
         result = getattr(ufunc, method)(*inputs, **kwargs)
-        
+
         if type(result) is tuple:
             # multiple return values
             return tuple(type(self)(x, voxel_offset=self.voxel_offset, voxel_size=self.voxel_size) for x in result)
@@ -739,7 +739,7 @@ ends with {cutout_stop}, size is {cutout_size}, voxel size is {voxel_size}.""")
 
     def __getitem__(self, index):
         return self.array[index]
-    
+
     def __setitem__(self, key, value):
         self.array[key] = value
 
@@ -751,7 +751,7 @@ ends with {cutout_stop}, size is {cutout_size}, voxel size is {voxel_size}.""")
             f'voxel size: {self.voxel_size}',
         ])
         return f"Chunk:\n {param_strs}"
-    
+
     def __eq__(self, value):
         if isinstance(value, type(self)):
             return np.array_equal(self.array, value.array) and np.array_equal(
@@ -787,7 +787,7 @@ ends with {cutout_stop}, size is {cutout_size}, voxel size is {voxel_size}.""")
         return issubdtype(self.dtype, np.uint8) and \
                     self.ndim == 3
 
-    @property 
+    @property
     def is_segmentation(self) -> bool:
         return self.array.ndim == 3 and \
                     (np.issubdtype(self.array.dtype, np.integer) or \
@@ -797,7 +797,7 @@ ends with {cutout_stop}, size is {cutout_size}, voxel size is {voxel_size}.""")
     @property
     def is_affinity_map(self) -> bool:
         return self.array.ndim == 4 and self.shape[0] == 3 and self.array.dtype == np.float32
-    
+
     @property
     def is_probability_map(self) -> bool:
         return (self.array.dtype == np.float32) and \
@@ -814,15 +814,15 @@ ends with {cutout_stop}, size is {cutout_size}, voxel size is {voxel_size}.""")
         if self.layer_type is not None:
             props['layer_type'] = self.layer_type
 
-        return props 
-    
+        return props
+
     def set_properties(self, properties: dict):
         if 'voxel_offset' in properties:
             self.voxel_offset = properties['voxel_offset']
 
         if 'voxel_size' in properties:
             self.voxel_size = properties['voxel_size']
-        
+
         if 'layer_type' in properties:
             self.layer_type = properties['layer_type']
 
@@ -845,10 +845,10 @@ ends with {cutout_stop}, size is {cutout_size}, voxel size is {voxel_size}.""")
         """
         return tuple(
             slice(o, o + s) for o, s in zip(self.ndoffset, self.shape))
-    
+
     @property
     def ndoffset(self) -> tuple:
-        """ 
+        """
         make the voxel offset have the same dimension with array
         """
         if self.ndim == 4:
@@ -883,15 +883,15 @@ ends with {cutout_stop}, size is {cutout_size}, voxel size is {voxel_size}.""")
 
     @property
     def ndim(self) -> int:
-        return self.array.ndim 
+        return self.array.ndim
 
-    @property 
+    @property
     def shape(self) -> tuple:
-        return self.array.shape 
-    
-    @property 
+        return self.array.shape
+
+    @property
     def dtype(self) -> np.dtype:
-        return self.array.dtype 
+        return self.array.dtype
 
     @property
     def voxel_stop(self) -> tuple:
@@ -966,8 +966,8 @@ ends with {cutout_stop}, size is {cutout_size}, voxel size is {voxel_size}.""")
         np.argmax(self.array, axis=0, out=out)
         # our selected channel index start from 1
         out += 1
-        return Chunk(out, 
-            voxel_offset=self.voxel_offset, 
+        return Chunk(out,
+            voxel_offset=self.voxel_offset,
             voxel_size=self.voxel_size,
             layer_type='segmentation',
         )
@@ -1010,7 +1010,7 @@ ends with {cutout_stop}, size is {cutout_size}, voxel size is {voxel_size}.""")
             print('automatically crop the chunk to output bounding box.')
             assert output_bbox is not None
             return self.cutout(output_bbox.slices)
-    
+
     def threshold(self, threshold: float) -> 'Chunk':
         array = self.array > threshold
         if array.ndim == 4:
@@ -1021,7 +1021,7 @@ ends with {cutout_stop}, size is {cutout_size}, voxel size is {voxel_size}.""")
         # numpy store bool as uint8 datatype, so this will not increase size.
         seg = seg.astype(np.uint8)
         return seg
-    
+
     def where(self, mask: np.ndarray) -> tuple:
         """
         find the indexes of masked value as an alternative of np.where function
@@ -1055,15 +1055,15 @@ ends with {cutout_stop}, size is {cutout_size}, voxel size is {voxel_size}.""")
             slices = x.slices
         else:
             slices = x
-            
+
         if len(slices) == self.ndim - 1:
             slices = (slice(0, self.shape[0]), ) + slices
         internalSlices = self._get_internal_slices(slices)
         arr = self.array[internalSlices]
         voxel_offset = tuple(s.start for s in slices[-3:])
-        return Chunk(arr, 
-            voxel_offset=voxel_offset, 
-            voxel_size=self.voxel_size, 
+        return Chunk(arr,
+            voxel_offset=voxel_offset,
+            voxel_size=self.voxel_size,
             layer_type=self.layer_type)
 
     def save(self, patch):
@@ -1080,12 +1080,12 @@ ends with {cutout_stop}, size is {cutout_size}, voxel size is {voxel_size}.""")
         same with add_overlap
         """
         internal_slices = tuple(
-            slice(max(s.start - o, 0), min(s.stop - o, h)) for s, o, h in 
+            slice(max(s.start - o, 0), min(s.stop - o, h)) for s, o, h in
             zip(patch.slices, self.ndoffset, self.shape)
         )
         shape = (s.stop - s.start for s in internal_slices)
         patch_starts = (
-            i.start - s.start + o for s, o, i in 
+            i.start - s.start + o for s, o, i in
             zip(patch.slices, self.ndoffset, internal_slices)
         )
         patch_slices = tuple(slice(s, s+h) for s, h in zip(patch_starts, shape))
