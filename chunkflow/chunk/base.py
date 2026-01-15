@@ -897,17 +897,16 @@ ends with {cutout_stop}, size is {cutout_size}, voxel size is {voxel_size}.""")
     def voxel_stop(self) -> tuple:
         return tuple(o + s for o, s in zip(self.ndoffset, self.shape))
 
-    def astype(self, dtype: Union[np.dtype, str]):
+    def astype(self, dtype: Union[np.dtype, str]) -> 'Chunk':
         if dtype is None:
-            new_array = self.array
-        if dtype != self.array.dtype:
+            print(yellow('dtype unspecified in chunk.astype() call, return a copy of the chunk.'))
+            new_array = self.array.copy()
+        elif dtype != self.array.dtype:
             new_array = self.array.astype(dtype)
-            chk = Chunk(new_array)
-            chk.properties = self.properties
-            return chk
-        else:
-            return self
-        
+        chk = Chunk(new_array)
+        chk.properties = self.properties
+        return chk
+
     def ascontiguousarray(self) -> 'Chunk':
         new_array = np.ascontiguousarray(self.array)
         return Chunk(new_array, voxel_offset=self.voxel_offset, voxel_size=self.voxel_size, layer_type=self.layer_type)

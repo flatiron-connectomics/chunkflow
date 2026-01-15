@@ -2058,7 +2058,8 @@ def save_tif(tasks, input_chunk_name: str, file_name: str, file_name_prefix: str
     for task in tasks:
         if task is not None:
             chunk = task[input_chunk_name]
-            chunk = chunk.astype(dtype)
+            if dtype is not None:
+                chunk = chunk.astype(dtype)
             chunk.to_tif(file_name=file_name, file_name_prefix=file_name_prefix, file_dir=file_dir,
                          compression=compression, two_dim=two_dim)
         yield task
