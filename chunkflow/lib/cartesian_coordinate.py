@@ -65,11 +65,11 @@ class Cartesian(namedtuple('Cartesian', ['z', 'y', 'x'])):
     @property
     def ceil(self):
         return Cartesian(ceil(self.z), ceil(self.y), ceil(self.x))
-    
+
     @property
     def floor(self):
         return Cartesian(floor(self.z), floor(self.y), floor(self.x))
-    
+
     def __hash__(self):
         return hash((self.z, self.y, self.x))
 
@@ -80,7 +80,7 @@ class Cartesian(namedtuple('Cartesian', ['z', 'y', 'x'])):
             return np.all([x==y for x, y in zip(self, other)])
         else:
             raise TypeError(f'only support Number , tuple or Cartesian for now, but get {type(other)}')
-    
+
     def __sub__(self, offset: Union[Cartesian, Number]):
         """subtract to another voxel coordinate
 
@@ -91,7 +91,7 @@ class Cartesian(namedtuple('Cartesian', ['z', 'y', 'x'])):
             return Cartesian.from_collection([x-offset for x in self])
         else:
             return Cartesian.from_collection([x-o for x, o in zip(self, offset)])
-    
+
     def __isub__(self, other:Union[Number, Cartesian]):
         return self - other
 
@@ -105,7 +105,7 @@ class Cartesian(namedtuple('Cartesian', ['z', 'y', 'x'])):
             return Cartesian(*[x+offset for x in self])
         else:
             return Cartesian(*[x+o for x, o in zip(self, offset)])
-    
+
     def __iadd__(self, other: Union[Cartesian, Number]):
         return self + other
 
@@ -145,7 +145,7 @@ class Cartesian(namedtuple('Cartesian', ['z', 'y', 'x'])):
             return Cartesian.from_collection([x%y for x, y in zip(self, d)])
         else:
             raise TypeError(f'only support Number or Cartesian for now, but got {type(d)}')
-    
+
     def __imod__(self, other: Union[Cartesian, Number]):
         return self % other
 
@@ -199,7 +199,7 @@ class Cartesian(namedtuple('Cartesian', ['z', 'y', 'x'])):
     @property
     def tuple(self):
         return (self.z, self.y, self.x)
-    
+
     @property
     def list(self):
         return [self.z, self.y, self.x]
@@ -235,14 +235,14 @@ class BoundingBox:
     #         stop = Cartesian.from_collection(stop)
     #     self.__setattr__('start', start)
     #     self.__setattr__('stop', stop)
-        
+
     @classmethod
     def from_bbox(cls, bbox: Bbox):
         assert isinstance(bbox, Bbox)
         start = Cartesian.from_collection(bbox.minpt)
         stop  = Cartesian.from_collection(bbox.maxpt)
         return cls(start, stop)
-    
+
     @classmethod
     def from_string(cls, string: str):
         match = BOUNDING_BOX_RE.search(string)
@@ -257,8 +257,8 @@ class BoundingBox:
             return cls(start, stop)
 
     @classmethod
-    def from_delta(cls, 
-            start: Union[list, tuple, Cartesian, np.ndarray], 
+    def from_delta(cls,
+            start: Union[list, tuple, Cartesian, np.ndarray],
             plus: Union[list, tuple, Cartesian, np.ndarray]):
         if not isinstance(start, Cartesian):
             start = Cartesian.from_collection(start)
@@ -315,7 +315,7 @@ class BoundingBox:
     def string(self):
         bbox = Bbox(self.start, self.stop)
         return bbox.to_filename()
-    
+
     # @property
     # def center(self) -> Cartesian:
     #     ct = (self.minpt + self.maxpt) // 2
@@ -329,7 +329,7 @@ class BoundingBox:
     @property
     def minpt(self) -> Cartesian:
         return self.start
-    
+
     @property
     def maxpt(self) -> Cartesian:
         return self.stop
@@ -377,8 +377,8 @@ class BoundingBox:
                         bbox = BoundingBox.from_delta(Cartesian(z,y,x), block_size)
                         bboxes.append(bbox)
         return bboxes
-    
-    def decompose_to_unaligned_block_bounding_boxes(self, 
+
+    def decompose_to_unaligned_block_bounding_boxes(self,
             block_size: Cartesian) -> BoundingBoxes:
         bboxes = BoundingBoxes()
         for z in range(self.start.z, self.stop.z, block_size.z):
@@ -393,7 +393,7 @@ class BoundingBox:
                     bbox = BoundingBox(block_start, block_stop)
                     bboxes.append(bbox)
         return bboxes
-       
+
     def __repr__(self):
         return f'BoundingBox({self.start}, {self.stop}'
 
@@ -417,7 +417,7 @@ class BoundingBox:
         else:
             raise ValueError(f'unsupported type of operand: {type(other)}')
         return BoundingBox(minpt, maxpt)
-         
+
     def __ifloordiv__(self, other: BoundingBox | Number | Cartesian):
         return self // other
 
@@ -512,8 +512,8 @@ class BoundingBox:
     def decompose(self, block_size: Cartesian,
             overlap: Cartesian = Cartesian(0, 0, 0), ignore_unaligned: bool = True) -> BoundingBoxes:
         """decompose the bounding box to a list of bounding boxes
-        If there exist some space that can not fit in a whole block, it will be 
-        ignored! 
+        If there exist some space that can not fit in a whole block, it will be
+        ignored!
 
         Args:
             block_size (Cartesian): the decomposed block size.
@@ -575,7 +575,7 @@ class BoundingBox:
             bbox = self.__class__.from_delta(minpt, self.shape)
             neighbors.append(bbox)
         return neighbors
-    
+
     def is_aligned_with(self, block_shape: Union[tuple, Cartesian]) -> bool:
         """whether the bounding box is aligned with block size or not
 
@@ -589,14 +589,14 @@ class BoundingBox:
         is_stop_aligned = (self.stop % block_shape == Cartesian(0,0,0))
         return is_start_aligned and is_stop_aligned
 
-    
+
 class BoundingBoxes(UserList):
     @classmethod
     def from_manual_setup(cls,
             chunk_size:Union[Vec, tuple],
             chunk_overlap: Union[Vec, tuple, Cartesian]=None,
             roi_start: Union[Vec, tuple, Cartesian]=None,
-            roi_stop: Union[Vec, tuple, Cartesian]=None, 
+            roi_stop: Union[Vec, tuple, Cartesian]=None,
             roi_size: Union[Vec, tuple, Cartesian]=None,
             grid_size: Union[Vec, tuple, Cartesian]=None,
             respect_chunk_size: bool = True,
@@ -704,7 +704,7 @@ class BoundingBoxes(UserList):
             roi_size = roi_stop - roi_start
 
         if grid_size is None:
-            grid_size = (roi_size - chunk_overlap) / stride 
+            grid_size = (roi_size - chunk_overlap) / stride
             grid_size = grid_size.ceil
             # grid_size = Cartesian.from_collection([ceil(x) for x in grid_size])
 
@@ -726,7 +726,7 @@ class BoundingBoxes(UserList):
 
         bboxes = []
         for (gz, gy, gx) in itertools.product(
-                    range(grid_size[0]), 
+                    range(grid_size[0]),
                     range(grid_size[1]),
                     range(grid_size[2])):
             chunk_start = roi_start + Cartesian(gz, gy, gx) * stride
@@ -793,20 +793,20 @@ class BoundingBoxes(UserList):
 @dataclass(frozen=True)
 class PhysicalBoundingBox(BoundingBox):
     voxel_size: Cartesian
-   
+
     @classmethod
-    def from_bounding_box(cls, bbox: BoundingBox, 
+    def from_bounding_box(cls, bbox: BoundingBox,
             voxel_size: Cartesian) -> PhysicalBoundingBox:
-        return cls(bbox.start, bbox.stop, 
+        return cls(bbox.start, bbox.stop,
             voxel_size)
-        
+
     @cached_property
     def voxel_bounding_box(self) -> BoundingBox:
         return BoundingBox(self.start, self.stop)
-    
+
     def to_other_voxel_size(self, voxel_size2: Cartesian) -> PhysicalBoundingBox:
         assert voxel_size2 != self.voxel_size
-        
+
         if voxel_size2 >= self.voxel_size:
 
             factors = voxel_size2 // self.voxel_size

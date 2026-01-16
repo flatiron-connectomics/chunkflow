@@ -1102,7 +1102,7 @@ def save_precomputed(tasks, name: str, volume_path: str,
 @main.command('load-zarr')
 @click.option('--store', '-f', type=str, required=True,
     help='Zarr store path: n5, local, precomputed')
-@click.option('--path', '-p', type=str, default = None,
+@click.option('--path', '-p', type=str, default=None,
     help = 'Zarr path in the store')
 @click.option('--layer-type', '-l',
     type=click.Choice(['image', 'segmentation']), default=None,
