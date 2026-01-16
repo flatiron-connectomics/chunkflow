@@ -468,12 +468,12 @@ class BoundingBox:
         stop  = self.maxpt + size[-3:]
         return BoundingBox(start, stop)
 
-    def adjust_corner(self, corner_offset: Union[tuple, list]):
-        assert corner_offset is not None
-        assert len(corner_offset) == 6
-        start = self.start + Cartesian.from_collection(corner_offset[:3])
-        stop  = self.stop + Cartesian.from_collection(corner_offset[-3:])
-        return BoundingBox(start, stop)
+    # def adjust_corner(self, corner_offset: Union[tuple, list]):
+    #     assert corner_offset is not None
+    #     assert len(corner_offset) == 6
+    #     start = self.start + Cartesian.from_collection(corner_offset[:3])
+    #     stop  = self.stop + Cartesian.from_collection(corner_offset[-3:])
+    #     return BoundingBox(start, stop)
 
     def union(self, bbox2: BoundingBox):
         """Merge another bounding box
