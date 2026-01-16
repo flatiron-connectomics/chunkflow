@@ -898,7 +898,7 @@ ends with {cutout_stop}, size is {cutout_size}, voxel size is {voxel_size}.""")
         return tuple(o + s for o, s in zip(self.ndoffset, self.shape))
 
     def astype(self, dtype: Union[np.dtype, str]) -> 'Chunk':
-        if dtype is None:
+        if dtype is None or dtype == self.array.dtype:
             print(yellow('dtype unspecified in chunk.astype() call, return a copy of the chunk.'))
             new_array = self.array.copy()
         elif dtype != self.array.dtype:
