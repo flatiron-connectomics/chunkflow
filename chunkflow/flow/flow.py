@@ -238,7 +238,7 @@ def generate_tasks(
     if bounding_box is not None:
         if os.path.isfile(bounding_box):
             with open(bounding_box, 'r') as f:
-                bbox_strs = [s.strip() for s in f.readlines() if s.strip()]
+                bbox_strs = list(filter(lambda bb: bool(bb), (s.split('#')[0].strip() for s in f.readlines())))
             bboxes = [BoundingBox.from_string(s) for s in bbox_strs]
         else:
             bboxes = [BoundingBox.from_string(bounding_box)]
