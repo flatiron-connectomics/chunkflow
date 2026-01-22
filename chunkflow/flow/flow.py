@@ -2067,7 +2067,7 @@ def load_tif(tasks, name: str, file_name: str, voxel_offset: tuple, voxel_size: 
 @click.option('--dtype', '-t', type=click.Choice(['uint8', 'uint16', 'uint32', 'uint64', 'float32', 'float64']),
     default=None, help='convert to this data type.')
 @click.option('--compression', '-c',
-    type=click.Choice(['', 'zlib', 'lzw', 'lzma', 'delta', 'packints', 'jpeg']),
+    type=click.Choice(['', 'none', 'raw', 'zlib', 'lzw', 'lzma', 'delta', 'packints', 'jpeg'], case_sensitive=False),
     default='zlib', help='encoders that supported by tifffile')
 @click.option('--two-dim/--no-two-dim', default=False,
               help='Write separate images for each slice in z.')

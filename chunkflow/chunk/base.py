@@ -484,7 +484,7 @@ class Chunk(NDArrayOperatorsMixin):
             file_name: str = None,
             file_name_prefix: str = None,
             file_dir: str = None,
-            compression: str = 'zlib',
+            compression: Optional[str] = 'zlib',
             two_dim=False,
     ):
         if file_name is None:
@@ -493,13 +493,18 @@ class Chunk(NDArrayOperatorsMixin):
                 file_name = file_name_prefix + file_name
         if file_dir is not None:
             file_name = os.path.join(file_dir, file_name)
+        if isinstance(compression, str):
+            if compression.lower() in ('none', 'null', 'raw', ''):
+                compression = None
+            else:
+                compression = compression.lower()
 
         if self.array.dtype==np.float32:
             # visualization in float32 is not working correctly in ImageJ
             # this might not work correctly if you want to save the image as it is!
             print(yellow('transforming data type from float32 to uint8'))
             img = self.array*255
-            img = img.astype( np.uint8 )
+            img = img.astype(np.uint8)
         else:
             img = self.array
 
