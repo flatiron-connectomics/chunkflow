@@ -100,7 +100,7 @@ def log_summary(log_dir, output_size):
     type=click.INT, default=None, nargs=3, callback=default_none,
     help='volume size or dimension.')
 @click.option('--string',
-    type=click.STRING, default=None, callback=default_none,
+    type=click.STRING, default=None,
     help='BoundingBox string.')
 @generator
 def create_bbox(start: tuple, stop: tuple, center: tuple, size: tuple, string: str):
@@ -469,7 +469,7 @@ def delete_var(tasks, var_names: str):
 @click.option('--mode', '-m',
     type=click.Choice(['missing', 'empty', 'exist']), default='exist',
     help='skip this task if the corresponding file is missing/empty/exists')
-@click.option('--adjust-size', '-a', default=None, type=click.INT, callback=default_none,
+@click.option('--adjust-size', '-a', default=None, type=click.INT,
     help='expand or shrink the bounding box. Currently, cloud-volume Bbox only support symmetric grow.')
 @operator
 def skip_task_by_file(tasks: Generator, prefix: str, suffix: str,
@@ -876,7 +876,7 @@ def delete_task_in_queue(tasks, name):
               type=click.INT, nargs=3, default=None, callback=default_none,
               help='total size of the volume.')
 @click.option('--volume-size-ref',
-              type=click.Path(exists=True), default=None, callback=default_none,
+              type=click.Path(exists=True), default=None,
               help='path to reference volume for obtaining size.')
 @click.option('--align-volume-size/--no-align-volume-size', default=False,
               help='align the volume size to the chunk/block size.')
@@ -1547,7 +1547,7 @@ def save_zarr(tasks, store: str, shape: tuple, resolution: tuple, mip: int, dtyp
     help='physical size of voxels. The unit is assumed to be nm.')
 @click.option('--channels', '-c', type=str, default=None,
     help='selected channels.')
-@click.option('--cutout-bbox', type=str, default=None, callback=default_none,
+@click.option('--cutout-bbox', type=str, default=None,
               help='cutout bbox in the array')
 @click.option('--cutout-start', '-t', type=click.INT, nargs=3, callback=default_none,
               help='cutout voxel offset in the array')
@@ -1924,7 +1924,7 @@ def save_nrrd(tasks, input_chunk_name, file_name):
 @click.option('--voxel-offset', '-t',
               type=click.INT, nargs=3, default=(0,0,0),
               help = 'the offset of png images volume, could be negative.')
-@click.option('--voxel-size', '-x', type=click.INT, nargs=3, default=(1,1,1), callback=default_none,
+@click.option('--voxel-size', '-x', type=click.INT, nargs=3, default=(1,1,1),
               help='physical size of voxels. the unit is assumed to be nm.')
 @click.option('--digit-num', '-d', type=click.INT, default=5,
               help='the total number of digits with leading zero padding, e.g., digit_num=3 --> "003"')
@@ -2019,7 +2019,7 @@ def save_pngs(tasks, name, axis, input_chunk_name, dtype, output_path):
               default=None, help='convert to data type')
 @click.option('--infer-chunk/--no-infer-chunk', '-i', default=False,
               help='infer chunk cutout boundaries from other chunks.')
-@click.option('--chunk-bbox', type=str, default=None, callback=default_none,
+@click.option('--chunk-bbox', type=str, default=None,
               help='BoundingBox string of chunk.')
 @click.option('--chunk-start', type=click.INT, nargs=3, default=None, callback=default_none,
               help='chunk start coordinates.')
@@ -2027,7 +2027,7 @@ def save_pngs(tasks, name, axis, input_chunk_name, dtype, output_path):
               help='chunk stop coordinates.')
 @click.option('--chunk-size', type=click.INT, nargs=3, default=None, callback=default_none,
               help='chunk size.')
-@click.option('--missing', type=str, default=None, callback=default_none,
+@click.option('--missing', type=str, default=None,
               help='missing image indices, separated by commas.')
 @click.option('--missing-val', type=str, default='neighbor',
               help='value to use to fill missing images.')
