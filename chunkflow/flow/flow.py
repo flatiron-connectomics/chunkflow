@@ -1190,7 +1190,6 @@ def load_zarr(tasks, store: str, path: str, chunk_start: tuple, volume_offset: t
         else:
             print('no voxel size, set default value: 1x1x1')
             voxel_size = Cartesian(1, 1, 1)
-            # raise ValueError(f'no voxel size attribute!')
     for task in tasks:
         if task is not None:
             if chunk_size is None and chunk_start is None and 'bbox' not in task:
@@ -1259,7 +1258,6 @@ def _open_zarr(store: str, path: str, kwargs: dict, order: str, scale=None, time
                 raise err
             delay = delay_unit * (2 ** retries)
             print(f'Failed to open zarr store ({err}), retrying in {delay} seconds...')
-            break
             sleep(delay)
             retries += 1
     if not initialization:
@@ -1274,13 +1272,6 @@ def _save_zarr(za, path: str, zarr_kwargs: dict, chunk_array: np.ndarray, chunk_
     if isinstance(za, str):
         za = _open_zarr(za, path, zarr_kwargs, order)
 
-    # if isinstance(chunk_array, SharedMemoryContainer):
-    #     chunk_array_shm = chunk_array
-    #     chunk_array = chunk_array_shm.load()
-    # else:
-    #     chunk_array_shm = None
-
-    # chunk_array_bbox = chunk_sub_bbox - chunk_real_bbox.start
     za_bbox = chunk_sub_bbox.intersection(chunk_real_bbox)  # In case sub_bbox extends outside of the real bbox
     za_shape = za.shape[order_slice]
     if any(s < 0 for s in za_bbox.start) or any(e > s for e, s in zip(za_bbox.shape, za_shape)):
@@ -1288,13 +1279,10 @@ def _save_zarr(za, path: str, zarr_kwargs: dict, chunk_array: np.ndarray, chunk_
         return
 
     if chunk_array.ndim == 4:
-        # chunk_array_slices = (slice(None),) + chunk_array_bbox.slices[order_slice]
         za_slices = (slice(None),) + za_bbox.slices[order_slice]
     else:
-        # chunk_array_slices = chunk_array_bbox.slices[order_slice]
         za_slices = za_bbox.slices[order_slice]
 
-    # bbox_array = chunk_array[chunk_array_slices]
     if chunk_array.size == 0:
         print(f'chunk {chunk_sub_bbox} is empty')
         return
@@ -1407,8 +1395,6 @@ def create_zarr(tasks, store: str, path: str, shape: tuple, resolution: tuple, m
     help='crop the extra data in the zarr array; expand if False.')
 @click.option('--split-chunks/--no-split-chunks', default=False,
     help='split data chunks and save separately.')
-@click.option('--workers', '-w', type=int, default=1,
-    help='number of workers to use for saving chunks.')
 @click.option('--order', '-o', type=str, default='xyz',
     help='order of the coordinates for the zarr array, "xyz" (Default) or "zyx".')
 @click.option('--input-chunk-name', '-i', type=str, default=DEFAULT_CHUNK_NAME,
@@ -1419,7 +1405,7 @@ def create_zarr(tasks, store: str, path: str, shape: tuple, resolution: tuple, m
     help='timeout in seconds for opening zarr store.')
 @operator
 def save_zarr(tasks, store: str, path: str, shape: tuple, resolution: tuple, mip: int, dtype: str, infer_dtype: bool,
-        chunk_size: tuple, ignore_unaligned: bool, split_chunks: bool, workers: int, order: str, input_chunk_name: str,
+        chunk_size: tuple, ignore_unaligned: bool, split_chunks: bool, order: str, input_chunk_name: str,
         compression: bool, timeout: float):
     """Save Zarr arrays."""
 
@@ -1464,11 +1450,6 @@ def save_zarr(tasks, store: str, path: str, shape: tuple, resolution: tuple, mip
             if not compression:
                 kwargs['compressors'] = None
 
-            # if 'DISBATCH_REPEAT_INDEX' in os.environ:
-            #     sync_path = f'{store}.sync'
-            #     sync = zarr.sync.ProcessSynchronizer(sync_path)
-            #     kwargs['synchronizer'] = sync
-
             za = _open_zarr(store, path, kwargs, order, scale, timeout)
 
             assert chunk.ndim == za.ndim, f'chunk shape {chunk.ndim} != zarr shape {za.ndim}'
@@ -1505,39 +1486,13 @@ def save_zarr(tasks, store: str, path: str, shape: tuple, resolution: tuple, mip
             print(f'saving chunk to zarr: shape={chunk_array.shape}, offset={chunk.bbox.start[order_slice]},'
                   f' {len(chunk_bboxes)} chunks')
             t_start = time()
-            if workers > 1:
-                raise NotImplementedError
-                # def chunk_array_generator():
-                #     for chunk_bbox in chunk_bboxes:
-                #         chunk_array_bbox = chunk_bbox - chunk_bbox_.start
-                #         if chunk_array.ndim == 4:
-                #             chunk_array_slices = (slice(None),) + chunk_array_bbox.slices[order_slice]
-                #         else:
-                #             chunk_array_slices = chunk_array_bbox.slices[order_slice]
-                #         yield chunk_array[chunk_array_slices]
-                #
-                # process_map(
-                #     _save_zarr,
-                #     repeat(store), repeat(kwargs), iter(chunk_array_generator()), chunk_bboxes,
-                #     repeat(chunk_bbox_), repeat(order),
-                #     max_workers=workers,
-                #     desc=f'saving zarr chunks ({workers} workers): ',
-                #     chunksize=32,
-                # )
-                # with multiprocessing.Pool(workers) as pool:
-                #     results = pool.starmap(
-                #         _save_zarr,
-                #         ((store, path, kwargs, chunk_array_shm, chunk_bbox, chunk_bbox_, order)
-                #          for chunk_bbox in chunk_bboxes)
-                #     )
-            else:
-                for chunk_bbox in chunk_bboxes:
-                    chunk_array_bbox = chunk_bbox - chunk_bbox_.start
-                    if chunk_array.ndim == 4:
-                        chunk_array_slices = (slice(None),) + chunk_array_bbox.slices
-                    else:
-                        chunk_array_slices = chunk_array_bbox.slices
-                    _save_zarr(za, path, None, chunk_array[chunk_array_slices], chunk_bbox, chunk_bbox_, order)
+            for chunk_bbox in chunk_bboxes:
+                chunk_array_bbox = chunk_bbox - chunk_bbox_.start
+                if chunk_array.ndim == 4:
+                    chunk_array_slices = (slice(None),) + chunk_array_bbox.slices
+                else:
+                    chunk_array_slices = chunk_array_bbox.slices
+                _save_zarr(za, path, None, chunk_array[chunk_array_slices], chunk_bbox, chunk_bbox_, order)
             print(f'save zarr time: {(time() - t_start)/60:.2f} minutes')
 
         yield task
