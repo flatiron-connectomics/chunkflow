@@ -358,20 +358,52 @@ def create_chunk(tasks, size, dtype, pattern, voxel_offset, voxel_size, output_c
         yield task
 
 
-@main.command('crop-margin')
+@main.command('translate-chunk')
 @click.option('--name', type=str, default='crop-margin',
     help='name of this operator')
-@click.option('--margin-size', '-m',
-    type=click.INT, nargs=6, default=None, callback=default_none,
+@click.option('--offset', type=click.INT, nargs=3, default=None, callback=default_none,
     help='crop the chunk margin. The default is None and will use the bbox as croping range. It should have 6 values. If it is 1,1,1,1,1,1, the chunk will shrink by 2x2x2 in each direction.')
-@click.option('--crop-bbox/--no-crop-bbox', default=False,
+@click.option('--modify-bbox/--no-modify-bbox', default=False,
     help='adjust the bounding box or not.')
 @click.option('--input-chunk-name', '-i',
     type=str, default='chunk', help='input chunk name.')
 @click.option('--output-chunk-name', '-o',
     type=str, default='chunk', help='output chunk name.')
 @operator
-def crop_margin(tasks, name: str, margin_size: tuple, crop_bbox: bool,
+def translate_chunk(tasks, name: str, offset: tuple, modify_bbox: bool,
+                    input_chunk_name: str, output_chunk_name: str):
+    """Crop the margin of chunk."""
+    for task in tasks:
+        if task is not None:
+            start = time()
+            new_start = task[input_chunk_name].voxel_offset + Cartesian.from_collection(offset)
+            if output_chunk_name != input_chunk_name:
+                task[output_chunk_name] = task[input_chunk_name].copy()
+            task[output_chunk_name].voxel_offset = new_start
+            if modify_bbox and 'bbox' in task:
+                bbox = task['bbox']
+                assert isinstance(bbox, BoundingBox)
+                bbox = bbox.adjust(np.concatenate([offset, offset]))
+                task['bbox'] = bbox
+            task['log']['timer'][name] = time() - start
+        yield task
+
+
+@main.command('crop-margin')
+@click.option('--name', type=str, default='crop-margin',
+    help='name of this operator')
+@click.option('--margin-size', '-m',
+    type=click.INT, nargs=6, default=None, callback=default_none,
+    help='crop the chunk margin. The default is None and will use the bbox as croping range.' \
+         ' It should have 6 values. If it is 1,1,1,1,1,1, the chunk will shrink by 2x2x2 in each direction.')
+@click.option('--modify-bbox/--no-modify-bbox', default=False,
+    help='adjust the bounding box or not.')
+@click.option('--input-chunk-name', '-i',
+    type=str, default='chunk', help='input chunk name.')
+@click.option('--output-chunk-name', '-o',
+    type=str, default='chunk', help='output chunk name.')
+@operator
+def crop_margin(tasks, name: str, margin_size: tuple, modify_bbox: bool,
                 input_chunk_name: str, output_chunk_name: str):
     """Crop the margin of chunk."""
     for task in tasks:
@@ -380,12 +412,14 @@ def crop_margin(tasks, name: str, margin_size: tuple, crop_bbox: bool,
             if margin_size:
                 task[output_chunk_name] = task[input_chunk_name].crop_margin(
                     margin_size=margin_size)
-                if crop_bbox and 'bbox' in task:
+                if modify_bbox and 'bbox' in task:
                     bbox = task['bbox']
                     assert isinstance(bbox, BoundingBox)
                     bbox = bbox.adjust(np.concatenate([margin_size[:3], -np.array(margin_size[3:])]))
                     task['bbox'] = bbox
             else:
+                if modify_bbox:
+                    raise ValueError('Cannot modify bbox when margin_size is None.')
                 # use the output bbox for croping
                 task[output_chunk_name] = task[
                     input_chunk_name].cutout(task['bbox'].slices)
