@@ -133,22 +133,24 @@ def create_bbox(start: tuple, stop: tuple, center: tuple, size: tuple, string: s
 
 
 @main.command('adjust-bbox')
-@click.option('--corner-offset', type=click.INT, nargs=6, default=None,
+@click.option('--corner-offset', type=click.INT, nargs=6, default=None, callback=default_none,
     help='adjust bounding box corner offset')
-@click.option('--expand', type=click.INT, nargs=3, default=None,
+@click.option('--expand', type=click.INT, nargs=3, default=None, callback=default_none,
     help='expand bounding box outward on both sides.')
 @click.option('--expand-uniform', type=click.INT, default=None,
     help='expand each dimension of bounding box outward on both sides.')
-@click.option('--crop', type=click.INT, nargs=3, default=None,
+@click.option('--crop', type=click.INT, nargs=3, default=None, callback=default_none,
     help='crop bounding box inward on both sides.')
 @click.option('--crop-uniform', type=click.INT, default=None,
     help='crop each dimension of bounding box inward on both sides.')
+@click.option('--translate', type=click.INT, nargs=3, default=None, callback=default_none,
+    help='translate the bounding box by this offset.')
 @operator
-def adjust_bbox(tasks, corner_offset: tuple, expand: tuple, expand_uniform: int, crop: tuple, crop_uniform: int):
+def adjust_bbox(tasks, corner_offset: tuple, expand: tuple, expand_uniform: int, crop: tuple, crop_uniform: int, translate: tuple):
     """adjust the corner of bounding box."""
     for task in tasks:
         if task is not None:
-            if sum(v is not None for v in [corner_offset, expand, expand_uniform, crop, crop_uniform]) != 1:
+            if sum(v is not None for v in [corner_offset, expand, expand_uniform, crop, crop_uniform, translate]) != 1:
                 raise ValueError('Only one of corner_offset, expand, expand_uniform, crop, and crop_uniform should be provided.')
             if corner_offset is not None:
                 adjustment = corner_offset
@@ -160,6 +162,9 @@ def adjust_bbox(tasks, corner_offset: tuple, expand: tuple, expand_uniform: int,
                 adjustment = expand
             elif expand_uniform is not None:
                 adjustment = expand_uniform
+            elif translate is not None:
+                adjustment = (translate[0], translate[1], translate[2],
+                              translate[0], translate[1], translate[2])
             bbox = task['bbox']
             bbox = bbox.adjust(adjustment)
             print(f'after bounding box adjustment: {bbox.string}')
