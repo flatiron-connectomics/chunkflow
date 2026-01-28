@@ -855,7 +855,9 @@ def delete_task_in_queue(tasks, name):
 @click.option('--input-chunk-name', '-i',
               type=str, default=DEFAULT_CHUNK_NAME,
               help="create info for this chunk.")
-@click.option('--volume-path', '-v', type=str, default="file://.",
+@click.option('--volume-path', '-v', type=str, default=None,
+              help='path of output volume/layer.')
+@click.option('--volume-prefix', type=str, default=None,
               help='path of output volume/layer.')
 @click.option('--channel-num', '-c', type=click.INT, default=1, help='number of channel')
 @click.option('--layer-type', '-t',
@@ -881,7 +883,7 @@ def delete_task_in_queue(tasks, name):
 @click.option('--align-volume-size/--no-align-volume-size', default=False,
               help='align the volume size to the chunk/block size.')
 @click.option('--block-size', '-b',
-              type=click.INT, nargs=3, required=True,
+              type=click.INT, nargs=3, default=None,
               help='chunk size of each file.')
 @click.option('--factor', '-f',
               type=click.INT, nargs=3, default=(2,2,2),
@@ -890,13 +892,28 @@ def delete_task_in_queue(tasks, name):
               type=click.INT, default=0,
               help = 'maximum mip level.')
 @operator
-def create_info(tasks, input_chunk_name: str, volume_path: str, channel_num: int,
+def create_info(tasks, input_chunk_name: str, volume_path: str, volume_prefix: str, channel_num: int,
                 layer_type: str, data_type: str, encoding: str, voxel_size: tuple,
                 voxel_offset: tuple, volume_size: tuple, volume_size_ref: str,
                 block_size: tuple, align_volume_size: bool, factor: tuple, max_mip: int):
     """Create attrsdata for Neuroglancer Precomputed volume."""
 
-    if '://' not in volume_path:
+    if block_size is None and input_chunk_name is None:
+        raise ValueError('block_size is required unless input_chunk_name is specified.')
+    input_chunk_incompatible = [volume_size_ref, volume_size]
+    input_chunk_incompat_str = "[volume_size_ref, volume_size]"
+    if input_chunk_name is not None and any(v is not None for v in input_chunk_incompatible):
+        raise ValueError("input_chunk_name is not compatible with any of the following args: "
+                         + input_chunk_incompat_str)
+
+    if volume_path is None:
+        if input_chunk_name is None:
+            raise ValueError("volume_path is required unless input_chunk_name is specified.")
+        elif volume_prefix is None:
+            raise ValueError("Either volume_path or volume_prefix is required if input_chunk_name is specified.")
+        if '://' not in volume_prefix:
+            volume_prefix = 'file://' + volume_prefix
+    elif '://' not in volume_path:
         volume_path = 'file://' + volume_path
 
     for task in tasks:
@@ -931,7 +948,8 @@ def create_info(tasks, input_chunk_name: str, volume_path: str, channel_num: int
                     raise NotImplementedError(f'unsupported file format for volume size reference: {volume_size_ref}')
                 if len(volume_size) == 4:
                     volume_size = volume_size[1:]
-            if not input_chunk_name in task:
+            if input_chunk_name not in task:
+                chunk = None
                 if voxel_offset is None:
                     voxel_offset = Cartesian(0, 0, 0)
             else:
@@ -951,8 +969,8 @@ def create_info(tasks, input_chunk_name: str, volume_path: str, channel_num: int
                     voxel_offset = chunk.voxel_offset
                 if voxel_size is None:
                     voxel_size = chunk.voxel_size
-
-                data_type = chunk.dtype.name
+                if data_type is None:
+                    data_type = chunk.dtype.name
 
                 if layer_type is None:
                     if np.issubdtype(chunk.dtype, np.uint8) or \
@@ -962,9 +980,12 @@ def create_info(tasks, input_chunk_name: str, volume_path: str, channel_num: int
                     else:
                         layer_type = 'segmentation'
 
+                if block_size is None:
+                    block_size = volume_size
+
             assert volume_size is not None
             assert data_type is not None
-            if data_type == 'segmentation':
+            if layer_type == 'segmentation':
                 mesh = "mesh"
             else:
                 mesh = None
@@ -990,6 +1011,12 @@ def create_info(tasks, input_chunk_name: str, volume_path: str, channel_num: int
                 compressed_segmentation_block_size=(8, 8, 8),
                 mesh=mesh,
             )
+
+            if volume_path is None:
+                assert chunk is not None and volume_prefix is not None
+                sep = '' if volume_prefix.endswith('_') else '_'
+                volume_path = volume_prefix + sep + chunk.bbox.string
+
             vol = CloudVolume(volume_path, info=info)
             vol.commit_info()
         yield task
@@ -998,8 +1025,8 @@ def create_info(tasks, input_chunk_name: str, volume_path: str, channel_num: int
 @main.command('load-precomputed')
 @click.option('--name',
               type=str, default='load-precomputed', help='name of this operator')
-@click.option('--volume-path', '-v',
-              type=str, required=True, help='volume path')
+@click.option('--volume-path', '-v', type=str, default=None, help='volume path')
+@click.option('--volume-prefix', type=str, default=None, help='volume path prefix')
 @click.option('--mip', '-m',
               type=click.INT, default=None, help='mip level of the cutout.')
 @click.option('--expand-margin-size', '-e',
@@ -1031,7 +1058,8 @@ def create_info(tasks, input_chunk_name: str, volume_path: str, channel_num: int
     ' sometimes you may need to have a secondary volume to work on.'
 )
 @operator
-def load_precomputed(tasks, name: str, volume_path: str, mip: int, expand_margin_size: tuple,
+def load_precomputed(tasks, name: str, volume_path: str, volume_prefix: str,
+        mip: int, expand_margin_size: tuple,
         chunk_start: tuple, chunk_size: tuple, infer_chunk: bool,
         fill_missing: bool, validate_mip: int, blackout_sections: bool,
         use_https: bool, output_chunk_name: str):
@@ -1040,15 +1068,22 @@ def load_precomputed(tasks, name: str, volume_path: str, mip: int, expand_margin
         mip = state['mip']
     assert mip >= 0
 
-    load_op = LoadPrecomputedOperator(
-        volume_path,
-        mip=mip,
-        fill_missing=fill_missing,
-        validate_mip=validate_mip,
-        blackout_sections=blackout_sections,
-        use_https=use_https,
-        dry_run=state['dry_run'],
-        name=name)
+    if volume_path is None and volume_prefix is None:
+        raise ValueError("Either volume_path or volume_prefix must be specified")
+
+    if volume_path is not None:
+        load_op = LoadPrecomputedOperator(
+            volume_path,
+            mip=mip,
+            fill_missing=fill_missing,
+            validate_mip=validate_mip,
+            blackout_sections=blackout_sections,
+            use_https=use_https,
+            dry_run=state['dry_run'],
+            name=name,
+        )
+    else:
+        load_op = None
 
     for task in tasks:
         if task is not None:
@@ -1073,6 +1108,20 @@ def load_precomputed(tasks, name: str, volume_path: str, mip: int, expand_margin
             if expand_margin_size is not None:
                 bbox = bbox.adjust(expand_margin_size)
 
+            if load_op is None:
+                sep = '' if volume_prefix.endswith('_') else '_'
+                volume_path = volume_prefix + sep + bbox.string
+                load_op = LoadPrecomputedOperator(
+                    volume_path,
+                    mip=mip,
+                    fill_missing=fill_missing,
+                    validate_mip=validate_mip,
+                    blackout_sections=blackout_sections,
+                    use_https=use_https,
+                    dry_run=state['dry_run'],
+                    name=name,
+                )
+
             start = time()
             # assert output_chunk_name not in task
             task[output_chunk_name] = load_op(bbox)
@@ -1083,7 +1132,8 @@ def load_precomputed(tasks, name: str, volume_path: str, mip: int, expand_margin
 
 @main.command('save-precomputed')
 @click.option('--name', type=str, default='save-precomputed', help='name of this operator')
-@click.option('--volume-path', '-v', type=str, required=True, help='volume path')
+@click.option('--volume-path', '-v', type=str, default=None, help='volume path')
+@click.option('--volume-prefix', type=str, default=None, help='volume path prefix')
 @click.option('--input-chunk-name', '-i', type=str, default=DEFAULT_CHUNK_NAME,
     help='input chunk name')
 @click.option('--mip', '-m', type=click.INT, default=None,
@@ -1103,7 +1153,7 @@ def load_precomputed(tasks, name: str, volume_path: str, mip: int, expand_margin
 @click.option('--non-aligned-writes/--aligned-writes', default=False,
     help='allow non-aligned writes to CloudVolume. Default is False.')
 @operator
-def save_precomputed(tasks, name: str, volume_path: str,
+def save_precomputed(tasks, name: str, volume_path: str, volume_prefix: str,
         input_chunk_name: str, mip: int, upload_log: bool,
         create_thumbnail: bool, intensity_threshold: float,
         parallel: int, fill_missing: bool, invert: bool,
@@ -1112,17 +1162,23 @@ def save_precomputed(tasks, name: str, volume_path: str,
     if mip is None:
         mip = state['mip']
 
-    save_op = SavePrecomputedOperator(
-        volume_path,
-        mip,
-        upload_log=upload_log,
-        create_thumbnail=create_thumbnail,
-        name=name,
-        parallel=parallel,
-        fill_missing=fill_missing,
-        invert=invert,
-        non_aligned_writes=non_aligned_writes,
-    )
+    if volume_path is None and volume_prefix is None:
+        raise ValueError("Either volume_path or volume_prefix must be specified")
+
+    if volume_path is not None:
+        save_op = SavePrecomputedOperator(
+            volume_path,
+            mip,
+            upload_log=upload_log,
+            create_thumbnail=create_thumbnail,
+            name=name,
+            parallel=parallel,
+            fill_missing=fill_missing,
+            invert=invert,
+            non_aligned_writes=non_aligned_writes,
+        )
+    else:
+        save_op = None
 
     for task in tasks:
         if task is not None:
@@ -1132,6 +1188,20 @@ def save_precomputed(tasks, name: str, volume_path: str,
                 print(f'average intensity lower than threshold, skip this task.')
                 pass
             else:
+                if save_op is None:
+                    sep = '' if volume_prefix.endswith('_') else '_'
+                    volume_path = volume_prefix + sep + chunk.bbox.string
+                    save_op = SavePrecomputedOperator(
+                        volume_path,
+                        mip,
+                        upload_log=upload_log,
+                        create_thumbnail=create_thumbnail,
+                        name=name,
+                        parallel=parallel,
+                        fill_missing=fill_missing,
+                        invert=invert,
+                        non_aligned_writes=non_aligned_writes,
+                    )
                 save_op(chunk, log=task.get('log', {'timer': {}}))
                 # task['output_volume_path'] = volume_path
 
@@ -2625,9 +2695,11 @@ def mask_out_objects(tasks, input_chunk_name, output_chunk_name,
     type=click.INT, default=None, help='mip level of segmentation chunk.')
 @click.option('--voxel-size', '-v', type=click.INT, nargs=3, default=None, callback=default_none,
     help='voxel size of the segmentation. zyx order.')
-@click.option('--output-path', '-o', type=str, default='file:///tmp/mesh/',
+@click.option('--volume-path', '-o', type=str, default=None,
     help='output path of meshes, follow the protocol rule of CloudVolume. \
               The path will be adjusted if there is a info file with precomputed format.')
+@click.option('--volume-prefix', type=str, default=None,
+    help='path prefix of output')
 @click.option('--output-format', '-t', type=click.Choice(['ply', 'obj', 'precomputed']),
               default='precomputed', help='output format, could be one of ply|obj|precomputed.')
 @click.option('--simplification-factor', '-f', type=click.INT, default=100,
@@ -2639,7 +2711,7 @@ def mask_out_objects(tasks, input_chunk_name, output_chunk_name,
 @click.option('--manifest/--no-manifest', default=False, help='create manifest file or not.')
 @click.option('--shard/--no-shard', default=False, help='combine meshes as one file')
 @operator
-def mesh(tasks, name, input_chunk_name, mip, voxel_size, output_path, output_format,
+def mesh(tasks, name, input_chunk_name, mip, voxel_size, volume_path, volume_prefix, output_format,
          simplification_factor, max_simplification_error, skip_ids: str, manifest, shard):
     """Perform meshing for segmentation chunk."""
     if mip is None:
@@ -2648,22 +2720,48 @@ def mesh(tasks, name, input_chunk_name, mip, voxel_size, output_path, output_for
     if skip_ids is not None:
         skip_ids = frozenset(map(int, skip_ids.split(',')))
 
-    mesh_op = MeshOperator(
-        output_path,
-        output_format,
-        mip=mip,
-        voxel_size=voxel_size,
-        simplification_factor=simplification_factor,
-        max_simplification_error=max_simplification_error,
-        manifest=manifest,
-        skip_ids = skip_ids,
-        shard=shard,
-    )
+    if volume_path is None:
+        if volume_prefix is None:
+            raise ValueError("Either volume_path or volume_prefix must be specified")
+        if '://' not in volume_prefix:
+            volume_prefix = 'file://' + volume_prefix
+    elif '://' not in volume_path:
+        volume_path = 'file://' + volume_path
+
+    if volume_path is not None:
+        mesh_op = MeshOperator(
+            volume_path,
+            output_format,
+            mip=mip,
+            voxel_size=voxel_size,
+            simplification_factor=simplification_factor,
+            max_simplification_error=max_simplification_error,
+            manifest=manifest,
+            skip_ids = skip_ids,
+            shard=shard,
+        )
+    else:
+        mesh_op = None
 
     for task in tasks:
         if task is not None:
             start = time()
-            mesh_op( task[input_chunk_name] )
+            chunk = task[input_chunk_name]
+            if mesh_op is None:
+                sep = '' if volume_prefix.endswith('_') else '_'
+                volume_path = volume_prefix + sep + chunk.bbox.string
+                mesh_op = MeshOperator(
+                    volume_path,
+                    output_format,
+                    mip=mip,
+                    voxel_size=voxel_size,
+                    simplification_factor=simplification_factor,
+                    max_simplification_error=max_simplification_error,
+                    manifest=manifest,
+                    skip_ids=skip_ids,
+                    shard=shard,
+                )
+            mesh_op(chunk)
             task['log']['timer'][name] = time() - start
         yield task
 
@@ -2675,8 +2773,7 @@ def mesh(tasks, name, input_chunk_name, mip, voxel_size, output_path, output_for
 @click.option('--volume-path', '-v', type=str, required=True, help='cloudvolume path of dataset layer.' +
               ' The mesh directory will be automatically figure out using the info file.')
 @generator
-def mesh_manifest(prefix: str,
-        disbatch: bool, digits: int, volume_path: str):
+def mesh_manifest(prefix: str, disbatch: bool, digits: int, volume_path: str):
     """Generate mesh manifest files."""
     mesh_op = MeshManifestOperator(volume_path)
     if prefix:
@@ -2921,8 +3018,10 @@ def downsample(tasks, input_chunk_name: str, output_chunk_name: str, factor: tup
     help='name of operator')
 @click.option('--input-chunk-name', '-i', type=str, default='chunk',
     help='input chunk name')
-@click.option('--volume-path', '-v', type=str,
+@click.option('--volume-path', '-v', type=str, default=None,
     help='path of output volume')
+@click.option('--volume-prefix', type=str, default=None,
+    help='path prefix of output volume')
 @click.option('--factor', '-f', type=click.INT, nargs=3, default=(2, 2, 2),
     help='downsampling factor in z,y,x.')
 @click.option('--chunk-mip', '-c', type=click.INT, default=None,
@@ -2936,26 +3035,52 @@ def downsample(tasks, input_chunk_name: str, output_chunk_name: str, factor: tup
 @click.option('--autocrop/--no-autocrop', default=True,
     help='pass to CloudVolume api.')
 @operator
-def downsample_upload(tasks, name, input_chunk_name, volume_path, factor,
+def downsample_upload(tasks, name, input_chunk_name, volume_path, volume_prefix, factor,
                       chunk_mip, start_mip, stop_mip, fill_missing, autocrop):
     """Downsample chunk and upload to volume."""
     if chunk_mip is None:
         chunk_mip = state['mip']
 
-    downsample_op = DownsampleUploadOperator(
-        volume_path,
-        factor=factor,
-        chunk_mip=chunk_mip,
-        start_mip=start_mip,
-        stop_mip=stop_mip,
-        fill_missing=fill_missing,
-        autocrop=autocrop,
-        name=name)
+    if volume_path is None:
+        if volume_prefix is None:
+            raise ValueError("Either volume_path or volume_prefix must be specified")
+        if '://' not in volume_prefix:
+            volume_prefix = 'file://' + volume_prefix
+    elif '://' not in volume_path:
+        volume_path = 'file://' + volume_path
+
+    if volume_path is not None:
+        downsample_op = DownsampleUploadOperator(
+            volume_path,
+            factor=factor,
+            chunk_mip=chunk_mip,
+            start_mip=start_mip,
+            stop_mip=stop_mip,
+            fill_missing=fill_missing,
+            autocrop=autocrop,
+            name=name,
+        )
+    else:
+        downsample_op = None
 
     for task in tasks:
         if task is not None:
             start = time()
-            downsample_op(task[input_chunk_name])
+            chunk = task[input_chunk_name]
+            if downsample_op is None:
+                sep = '' if volume_prefix.endswith('_') else '_'
+                volume_path = volume_prefix + sep + chunk.bbox.string
+                downsample_op = DownsampleUploadOperator(
+                    volume_path,
+                    factor=factor,
+                    chunk_mip=chunk_mip,
+                    start_mip=start_mip,
+                    stop_mip=stop_mip,
+                    fill_missing=fill_missing,
+                    autocrop=autocrop,
+                    name=name,
+                )
+            downsample_op(chunk)
             task['log']['timer'][name] = time() - start
         yield task
 
