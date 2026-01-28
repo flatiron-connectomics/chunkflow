@@ -852,8 +852,7 @@ def delete_task_in_queue(tasks, name):
 
 
 @main.command('create-info')
-@click.option('--input-chunk-name', '-i',
-              type=str, default=DEFAULT_CHUNK_NAME,
+@click.option('--input-chunk-name', '-i', type=str, default=None,
               help="create info for this chunk.")
 @click.option('--volume-path', '-v', type=str, default=None,
               help='path of output volume/layer.')
@@ -948,7 +947,7 @@ def create_info(tasks, input_chunk_name: str, volume_path: str, volume_prefix: s
                     raise NotImplementedError(f'unsupported file format for volume size reference: {volume_size_ref}')
                 if len(volume_size) == 4:
                     volume_size = volume_size[1:]
-            if input_chunk_name not in task:
+            if input_chunk_name is None or input_chunk_name not in task:
                 chunk = None
                 if voxel_offset is None:
                     voxel_offset = Cartesian(0, 0, 0)
