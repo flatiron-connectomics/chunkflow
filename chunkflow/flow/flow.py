@@ -2569,6 +2569,25 @@ def channel_voting(tasks, input_chunk_name, output_chunk_name):
         yield task
 
 
+@main.command('convert-dtype')
+@click.option('--input-chunk-name', '-i', type=str, default=DEFAULT_CHUNK_NAME)
+@click.option('--output-chunk-name', '-o', type=str, default=DEFAULT_CHUNK_NAME)
+@click.option('--dtype', '-d', type=str, required=True, help='convert chunk to this dtype')
+@click.option('--rescale/--no-rescale', default=False, help='rescale uint dtypes')
+@click.option('--layer-type', '-t', type=str, default=None, help='convert to this layer type')
+@operator
+def convert_dtype(tasks, input_chunk_name: str, output_chunk_name: str, dtype: str, rescale: bool, layer_type: str):
+    """all channels vote to get a uint8 volume. The channel with max intensity wins."""
+    for task in tasks:
+        chunk = task[input_chunk_name].astype(dtype, rescale=rescale)
+        if layer_type:
+            if layer_type.lower() in ('none', 'null'):
+                layer_type = None
+            chunk.layer_type = layer_type
+        task[output_chunk_name] = chunk
+        yield task
+
+
 @main.command('mask')
 @click.option('--name', type=str, default='mask', help='name of this operator')
 @click.option('--input-names', '-i',
