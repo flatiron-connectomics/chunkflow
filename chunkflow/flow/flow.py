@@ -2447,11 +2447,10 @@ def connected_components(tasks, name: str,
 @operator
 def inference(
     tasks, name: str, convnet_model: str, convnet_weight_path: str,
-    input_patch_size: tuple, output_patch_size: tuple, output_patch_overlap: tuple, output_crop_margin: tuple, patch_num: int, num_input_channels: int,
-    num_output_channels: int, dtype: str, framework: str, batch_size: int,
-    bump: str, mask_output_chunk: bool,
-              mask_myelin_threshold: float, augment: bool,
-              input_chunk_name, output_chunk_name):
+    input_patch_size: tuple, output_patch_size: tuple, output_patch_overlap: tuple, output_crop_margin: tuple,
+    patch_num: int, num_input_channels: int, num_output_channels: int, dtype: str, framework: str, batch_size: int,
+    bump: str, mask_output_chunk: bool, mask_myelin_threshold: float, augment: bool,
+    input_chunk_name, output_chunk_name):
     """Perform convolutional network inference for chunks."""
     with Inferencer(
         convnet_model,
