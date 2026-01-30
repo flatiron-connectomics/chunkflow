@@ -2601,8 +2601,7 @@ def convert_dtype(tasks, input_chunk_name: str, output_chunk_name: str, dtype: s
 @click.option('--inverse/--no-inverse',
               default=False,
               help='inverse the mask or not (default is no-inverse).')
-@click.option('--inplace/--copy',
-              default=True,
+@click.option('--inplace/--copy', default=False,
               help='modify chunks in-place or return modified copy (default is in-place).')
 @click.option('--fill-missing/--no-fill-missing',
               default=True,

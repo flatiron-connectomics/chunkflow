@@ -19,6 +19,9 @@ class MaskOperator(OperatorBase):
                  name: str = 'mask'):
         super().__init__(name=name)
 
+        if '://' not in volume_path:
+            volume_path = 'file://' + volume_path
+
         self.mask_mip = mask_mip
         self.chunk_mip = chunk_mip
         self.inverse = inverse
