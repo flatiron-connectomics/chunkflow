@@ -876,8 +876,7 @@ def delete_task_in_queue(tasks, name):
 @click.option('--volume-size', '-z',
               type=click.INT, nargs=3, default=None, callback=default_none,
               help='total size of the volume.')
-@click.option('--volume-size-ref',
-              type=click.Path(exists=True), default=None,
+@click.option('--volume-size-ref', type=str, default=None,
               help='path to reference volume for obtaining size.')
 @click.option('--align-volume-size/--no-align-volume-size', default=False,
               help='align the volume size to the chunk/block size.')
@@ -920,8 +919,8 @@ def create_info(tasks, input_chunk_name: str, volume_path: str, volume_prefix: s
             if volume_size is None and volume_size_ref is not None:
                 if '.zarr' in volume_size_ref.lower():
                     volume_size = zarr.open(volume_size_ref).shape
-                elif os.path.isdir(volume_size_ref):
-                    if os.path.exists(os.path.join(volume_size_ref, 'info')):
+                elif 's3://' in volume_size_ref or os.path.isdir(volume_size_ref):
+                    if 's3://' in volume_size_ref or os.path.exists(os.path.join(volume_size_ref, 'info')):
                         if '://' not in volume_size_ref:
                             volume_size_ref = 'file://' + volume_size_ref
                         ref_volume = CloudVolume(volume_size_ref)
