@@ -373,10 +373,32 @@ class Chunk(NDArrayOperatorsMixin):
         assert os.path.exists(file_name)
         if os.path.isfile(file_name):
             arr = tifffile.imread(file_name)
+
+            if isinstance(bbox, str):
+                bbox = BoundingBox.from_string(bbox)
+
+            if bbox_start is not None:
+                if bbox is not None:
+                    raise ValueError('bbox_start and bbox are mutually exclusive')
+                if bbox_stop is None and bbox_size is None:
+                    raise ValueError('bbox_stop or bbox_size must be provided')
+                if bbox_size is not None:
+                    bbox = BoundingBox.from_delta(bbox_start, bbox_size)
+                else:
+                    bbox = BoundingBox.from_list([*bbox_start, *bbox_stop])
+
+            if voxel_offset is None:
+                voxel_offset = (0, 0, 0)
+
+            if bbox is not None:
+                bbox_slices = (bbox - voxel_offset).slices
+                chunk_offset = (bbox - voxel_offset).start
+                arr = arr[bbox_slices]
+            else:
+                chunk_offset = voxel_offset
+            missing_frames = []
             if dtype:
                 arr = arr.astype(dtype)
-            chunk_offset = voxel_offset
-            missing_frames = []
         elif os.path.isdir(file_name):
             fnames = glob.glob(f"{file_name.rstrip('/')}/*.tif*")
             fnames = sorted(fnames)
