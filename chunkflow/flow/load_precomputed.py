@@ -1,8 +1,10 @@
 
 
 import numpy as np
-from cloudvolume import CloudVolume
 from cloudfiles import CloudFiles
+from cloudvolume import CloudVolume
+from cloudvolume.exceptions import EmptyVolumeException
+from cloudvolume.lib import yellow
 
 from chunkflow.lib.cartesian_coordinate import BoundingBox, Cartesian
 from chunkflow.chunk.validate import validate_by_template_matching
@@ -16,6 +18,7 @@ class LoadPrecomputedOperator(OperatorBase):
                  volume_path: str,
                  mip: int = 0,
                  fill_missing: bool = False,
+                 raise_missing: bool = True,
                  validate_mip: int = None,
                  blackout_sections: bool = None,
                  use_https: bool = False,
@@ -31,6 +34,7 @@ class LoadPrecomputedOperator(OperatorBase):
         self.volume_path = volume_path
         self.mip = mip
         self.fill_missing = fill_missing
+        self.raise_missing = raise_missing
         self.validate_mip = validate_mip
         self.blackout_sections = blackout_sections
         self.dry_run = dry_run
@@ -72,7 +76,15 @@ class LoadPrecomputedOperator(OperatorBase):
         print(f'cutout ZYX_{chunk_slices} from {self.volume_path}')
 
         # always reverse the indexes since cloudvolume use x,y,z indexing
-        chunk = self.vol[chunk_slices[::-1]]
+        try:
+            chunk = self.vol[chunk_slices[::-1]]
+        except EmptyVolumeException:
+            if not self.raise_missing:
+                print(yellow(f"Empty chunk in {self.volume_path} for slices {chunk_slices}, returning None"))
+                return None
+            else:
+                raise
+
         chunk = np.asarray(chunk)
         # the cutout is fortran ordered, so need to transpose and make it C order
         chunk = chunk.transpose()

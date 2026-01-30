@@ -1039,9 +1039,10 @@ def create_info(tasks, input_chunk_name: str, volume_path: str, volume_prefix: s
               help='cutout chunk size.')
 @click.option('--infer-chunk/--no-infer-chunk', '-i', default=False,
               help='infer chunk cutout boundaries from other chunks.')
-@click.option('--fill-missing/--no-fill-missing',
-              default=True, help='fill the missing chunks in input volume with zeros ' +
-              'or not, default is false')
+@click.option('--fill-missing/--no-fill-missing', default=True,
+              help='fill the missing chunks in input volume with zeros or not, default is True')
+@click.option('--raise-missing/--no-raise-missing', default=True,
+              help='Raise error if attempting to load missing data and fill-missing is False; default is True')
 @click.option('--validate-mip',
               type=click.INT, default=None, help='validate chunk using higher mip level')
 @click.option('--blackout-sections/--no-blackout-sections',
@@ -1060,7 +1061,7 @@ def create_info(tasks, input_chunk_name: str, volume_path: str, volume_prefix: s
 def load_precomputed(tasks, name: str, volume_path: str, volume_prefix: str,
         mip: int, expand_margin_size: tuple,
         chunk_start: tuple, chunk_size: tuple, infer_chunk: bool,
-        fill_missing: bool, validate_mip: int, blackout_sections: bool,
+        fill_missing: bool, raise_missing: bool, validate_mip: int, blackout_sections: bool,
         use_https: bool, output_chunk_name: str):
     """Cutout chunk from volume."""
     if mip is None:
@@ -1075,6 +1076,7 @@ def load_precomputed(tasks, name: str, volume_path: str, volume_prefix: str,
             volume_path,
             mip=mip,
             fill_missing=fill_missing,
+            raise_missing=raise_missing,
             validate_mip=validate_mip,
             blackout_sections=blackout_sections,
             use_https=use_https,
