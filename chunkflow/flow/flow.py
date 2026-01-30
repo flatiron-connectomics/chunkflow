@@ -584,7 +584,7 @@ def skip_all_zero(tasks, input_chunk_name: str, prefix: str, suffix: str, adjust
 @main.command('skip-none')
 @click.option('--input-name', '-i',
     type=str, default=DEFAULT_CHUNK_NAME, help='input name')
-@click.option('--touch/--no-touch', default=True, help='touch an empty file or not')
+@click.option('--touch/--no-touch', default=False, help='touch an empty file or not')
 @click.option('--prefix', '-p', default=None, help='prefix of output file.')
 @click.option('--suffix', '-s', default=None, help='suffix of output file.')
 @operator
