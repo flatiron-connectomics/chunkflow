@@ -50,18 +50,24 @@ def default_none(ctx, _, value):
 @click.option('--mip', '-m',
               type=click.INT, default=0,
               help='default mip level of chunks.')
+@click.option('--use-tensorstore/--no-use-tensorstore', default=False,
+    help='default backend for operators that support both cloudvolume and '
+         'tensorstore. Individual commands can still override this with their '
+         'own --use-tensorstore/--no-use-tensorstore flag.')
 @click.option('--dry-run/--real-run', default=False,
               help='dry run or real run. default is real run.')
-@click.option('--verbose/--quiet', default=False, 
+@click.option('--verbose/--quiet', default=False,
     help='show more information or not. default is False.')
 @click.option('--debug/--no-debug', default=False,
     help='drop into pdb.postmortem upon exception.')
 @click.option('--timeit/--no-timeit', default=False,
     help='print start, end, and overall time of the pipeline.')
-def main(mip: int, dry_run: bool, verbose: bool, debug: bool, timeit: bool):
+def main(mip: int, use_tensorstore: bool, dry_run: bool, verbose: bool,
+         debug: bool, timeit: bool):
     """Compose operators and create your own pipeline."""
-    
+
     state['mip'] = mip
+    state['use_tensorstore'] = use_tensorstore
     state['dry_run'] = dry_run
     state['verbose'] = verbose
     state['debug'] = debug if 'SLURM_JOB_ID' not in os.environ else False
@@ -75,7 +81,7 @@ def main(mip: int, dry_run: bool, verbose: bool, debug: bool, timeit: bool):
 
 
 @main.result_callback()
-def process_commands(operators, mip, dry_run, verbose, debug, timeit):
+def process_commands(operators, mip, use_tensorstore, dry_run, verbose, debug, timeit):
     """This result callback is invoked with an iterable of all 
     the chained subcommands. As in this example each subcommand 
     returns a function we can chain them together to feed one 

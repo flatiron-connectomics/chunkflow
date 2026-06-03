@@ -1,9 +1,14 @@
 
 from cloudvolume import CloudVolume
+import tensorstore as ts
 import tinybrain
 import numpy as np
 from cloudvolume.lib import Bbox
 from .base import OperatorBase
+from .save_precomputed import (
+    _tensorstore_kvstore_from_url,
+    _tensorstore_write_chunk,
+)
 
 
 class DownsampleUploadOperator(OperatorBase):
@@ -13,7 +18,7 @@ class DownsampleUploadOperator(OperatorBase):
     For image, the algorithm will be automatically choosen as average pooling.
     For segmentation, the algorithm will be Will Silversman's countless algorithm to perform model pooling. The most frequent segmentation ID will be choosen.
 
-    The type of chunk was automatically determined from the data type. 
+    The type of chunk was automatically determined from the data type.
     Image: uint8, floating
     Segmentation: uint16, uint32, uint64,...
     """
@@ -23,6 +28,7 @@ class DownsampleUploadOperator(OperatorBase):
                  chunk_mip: int = 0,
                  start_mip: int = None,
                  stop_mip: int = 5,
+                 use_tensorstore: bool = False,
                  fill_missing: bool = True,
                  autocrop: bool = True,
                  verbose=False,
@@ -36,26 +42,43 @@ class DownsampleUploadOperator(OperatorBase):
         fill_missing: (bool) fill missing blocks with zeros or not. See same parameter in cloudvolume.
         """
         super().__init__(name=name)
-        
+
         if start_mip is None:
             start_mip = chunk_mip + 1
 
-        vols = dict()
-        for mip in range(start_mip, stop_mip):
-            vols[mip] = CloudVolume(volume_path,
-                                    fill_missing=fill_missing,
-                                    bounded=False,
-                                    autocrop=autocrop,
-                                    mip=mip,
-                                    green_threads=True,
-                                    delete_black_uploads=True,
-                                    progress=verbose)
+        if use_tensorstore:
+            url = volume_path
+            if url.startswith('precomputed://'):
+                url = url[len('precomputed://'):]
+            if '://' not in url:
+                url = 'file://' + url
+            kvstore = _tensorstore_kvstore_from_url(url)
+            vols = {}
+            for mip in range(start_mip, stop_mip):
+                vols[mip] = ts.open({
+                    'driver': 'neuroglancer_precomputed',
+                    'kvstore': kvstore,
+                    'scale_index': mip,
+                }, read=True, write=True).result()
+        else:
+            vols = {}
+            for mip in range(start_mip, stop_mip):
+                vols[mip] = CloudVolume(volume_path,
+                                        fill_missing=fill_missing,
+                                        bounded=False,
+                                        autocrop=autocrop,
+                                        mip=mip,
+                                        green_threads=True,
+                                        delete_black_uploads=True,
+                                        progress=verbose)
 
         self.vols = vols
         self.factor = factor
         self.chunk_mip = chunk_mip
         self.start_mip = start_mip
         self.stop_mip = stop_mip
+        self.autocrop = autocrop
+        self._tensorstore = use_tensorstore
         assert len(factor) == 3
         assert np.all([f>=1 for f in factor])
         assert stop_mip > start_mip
@@ -78,16 +101,22 @@ class DownsampleUploadOperator(OperatorBase):
             pyramid = tinybrain.downsample_segmentation(chunk2,
                                                         factor=self.factor[::-1],
                                                         num_mips=num_mips)
-        
+
         #print(f'upload image pyramid...')
         for mip in range(self.start_mip, self.stop_mip):
             # the first chunk in pyramid is already downsampled!
             downsampled_chunk = pyramid[mip - self.chunk_mip - 1]
             # compute new offset, only downsample the y,x dimensions
             offset = np.divide(voxel_offset, np.asarray([
-                self.factor[0]**(mip - self.chunk_mip), 
-                self.factor[1]**(mip - self.chunk_mip), 
+                self.factor[0]**(mip - self.chunk_mip),
+                self.factor[1]**(mip - self.chunk_mip),
                 self.factor[2]**(mip - self.chunk_mip)]))
             bbox = Bbox.from_delta(offset, downsampled_chunk.shape[0:3][::-1])
             # upload downsampled chunk, note that we should use F order in the indexing
-            self.vols[mip][bbox.to_slices()[::-1]] = downsampled_chunk
+            xyz_slices = bbox.to_slices()[::-1]
+            if self._tensorstore:
+                _tensorstore_write_chunk(
+                    self.vols[mip], xyz_slices, downsampled_chunk,
+                    autocrop=self.autocrop)
+            else:
+                self.vols[mip][xyz_slices] = downsampled_chunk

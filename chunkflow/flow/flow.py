@@ -1054,6 +1054,9 @@ def create_info(tasks, input_chunk_name: str, volume_path: str, volume_prefix: s
     'the section ids json file should named blackout_section_ids.json. default is False.')
 @click.option('--use-https/--use-credential', default=False,
     help='if we read from a public dataset in cloud storage, it is required to use https.')
+@click.option('--use-tensorstore/--no-use-tensorstore', default=None,
+    help='use tensorstore as the backend instead of cloudvolume. When unset, '
+         'falls back to the top-level --use-tensorstore (default False).')
 @click.option(
     '--output-chunk-name', '-o',
     type=str, default=DEFAULT_CHUNK_NAME,
@@ -1066,11 +1069,13 @@ def load_precomputed(tasks, name: str, volume_path: str, volume_prefix: str,
         mip: int, expand_margin_size: tuple,
         chunk_start: tuple, chunk_size: tuple, infer_chunk: bool,
         fill_missing: bool, raise_missing: bool, validate_mip: int, blackout_sections: bool,
-        use_https: bool, output_chunk_name: str):
+        use_https: bool, use_tensorstore: bool, output_chunk_name: str):
     """Cutout chunk from volume."""
     if mip is None:
         mip = state['mip']
     assert mip >= 0
+    if use_tensorstore is None:
+        use_tensorstore = state.get('use_tensorstore', False)
 
     if volume_path is None and volume_prefix is None:
         raise ValueError("Either volume_path or volume_prefix must be specified")
@@ -1084,6 +1089,7 @@ def load_precomputed(tasks, name: str, volume_path: str, volume_prefix: str,
             validate_mip=validate_mip,
             blackout_sections=blackout_sections,
             use_https=use_https,
+            use_tensorstore=use_tensorstore,
             dry_run=state['dry_run'],
             name=name,
         )
@@ -1099,12 +1105,12 @@ def load_precomputed(tasks, name: str, volume_path: str, volume_prefix: str,
             else:
                 # use bounding box of volume
                 if chunk_start is None:
-                    chunk_start = load_op.vol.mip_bounds(mip).minpt[::-1]
+                    chunk_start = load_op.mip_bounds(mip)[0][::-1]
                 else:
                     chunk_start = Vec(*chunk_start)
 
                 if chunk_size is None:
-                    chunk_stop = load_op.vol.mip_bounds(mip).maxpt[::-1]
+                    chunk_stop = load_op.mip_bounds(mip)[1][::-1]
                     chunk_size = chunk_stop - chunk_start
                 else:
                     chunk_size = Vec(*chunk_size)
@@ -1123,6 +1129,7 @@ def load_precomputed(tasks, name: str, volume_path: str, volume_prefix: str,
                     validate_mip=validate_mip,
                     blackout_sections=blackout_sections,
                     use_https=use_https,
+                    use_tensorstore=use_tensorstore,
                     dry_run=state['dry_run'],
                     name=name,
                 )
@@ -1157,15 +1164,20 @@ def load_precomputed(tasks, name: str, volume_path: str, volume_prefix: str,
     help='invert before saving (dtype_max - values). Default is False.')
 @click.option('--non-aligned-writes/--aligned-writes', default=False,
     help='allow non-aligned writes to CloudVolume. Default is False.')
+@click.option('--use-tensorstore/--no-use-tensorstore', default=None,
+    help='use tensorstore as the backend instead of cloudvolume. When unset, '
+         'falls back to the top-level --use-tensorstore (default False).')
 @operator
 def save_precomputed(tasks, name: str, volume_path: str, volume_prefix: str,
         input_chunk_name: str, mip: int, upload_log: bool,
         create_thumbnail: bool, intensity_threshold: float,
         parallel: int, fill_missing: bool, invert: bool,
-        non_aligned_writes: bool):
+        non_aligned_writes: bool, use_tensorstore: bool):
     """Save chunk to volume."""
     if mip is None:
         mip = state['mip']
+    if use_tensorstore is None:
+        use_tensorstore = state.get('use_tensorstore', False)
 
     if volume_path is None and volume_prefix is None:
         raise ValueError("Either volume_path or volume_prefix must be specified")
@@ -1181,6 +1193,7 @@ def save_precomputed(tasks, name: str, volume_path: str, volume_prefix: str,
             fill_missing=fill_missing,
             invert=invert,
             non_aligned_writes=non_aligned_writes,
+            use_tensorstore=use_tensorstore,
         )
     else:
         save_op = None
@@ -1206,6 +1219,7 @@ def save_precomputed(tasks, name: str, volume_path: str, volume_prefix: str,
                         fill_missing=fill_missing,
                         invert=invert,
                         non_aligned_writes=non_aligned_writes,
+                        use_tensorstore=use_tensorstore,
                     )
                 save_op(chunk, log=task.get('log', {'timer': {}}))
                 # task['output_volume_path'] = volume_path
@@ -3088,12 +3102,18 @@ def downsample(tasks, input_chunk_name: str, output_chunk_name: str, factor: tup
     help='fill missing or not when there is all zero blocks.')
 @click.option('--autocrop/--no-autocrop', default=True,
     help='pass to CloudVolume api.')
+@click.option('--use-tensorstore/--no-use-tensorstore', default=None,
+    help='use tensorstore as the backend instead of cloudvolume. When unset, '
+         'falls back to the top-level --use-tensorstore (default False).')
 @operator
 def downsample_upload(tasks, name, input_chunk_name, volume_path, volume_prefix, factor,
-                      chunk_mip, start_mip, stop_mip, fill_missing, autocrop):
+                      chunk_mip, start_mip, stop_mip, fill_missing, autocrop,
+                      use_tensorstore):
     """Downsample chunk and upload to volume."""
     if chunk_mip is None:
         chunk_mip = state['mip']
+    if use_tensorstore is None:
+        use_tensorstore = state.get('use_tensorstore', False)
 
     if volume_path is None:
         if volume_prefix is None:
@@ -3110,6 +3130,7 @@ def downsample_upload(tasks, name, input_chunk_name, volume_path, volume_prefix,
             chunk_mip=chunk_mip,
             start_mip=start_mip,
             stop_mip=stop_mip,
+            use_tensorstore=use_tensorstore,
             fill_missing=fill_missing,
             autocrop=autocrop,
             name=name,
@@ -3130,6 +3151,7 @@ def downsample_upload(tasks, name, input_chunk_name, volume_path, volume_prefix,
                     chunk_mip=chunk_mip,
                     start_mip=start_mip,
                     stop_mip=stop_mip,
+                    use_tensorstore=use_tensorstore,
                     fill_missing=fill_missing,
                     autocrop=autocrop,
                     name=name,
