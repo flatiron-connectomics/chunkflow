@@ -587,8 +587,9 @@ def skip_all_zero(tasks, input_chunk_name: str, prefix: str, suffix: str, adjust
 @click.option('--touch/--no-touch', default=False, help='touch an empty file or not')
 @click.option('--prefix', '-p', default=None, help='prefix of output file.')
 @click.option('--suffix', '-s', default=None, help='suffix of output file.')
+@click.option('--verbose/--no-verbose', default=False, help='print skipping status')
 @operator
-def skip_none(tasks: dict, input_name: str, touch: bool, prefix: str, suffix: str):
+def skip_none(tasks: dict, input_name: str, touch: bool, prefix: str, suffix: str, verbose: bool):
     """If item is None, skip this task."""
     for task in tasks:
         if task is not None:
@@ -603,6 +604,10 @@ def skip_none(tasks: dict, input_name: str, touch: bool, prefix: str, suffix: st
                     fname = f'{prefix}{bbox.string}{suffix}'
                     os.makedirs(os.path.dirname(fname), exist_ok=True)
                     Path(fname).touch()
+                if verbose:
+                    print('skipping task')
+            elif verbose:
+                print('not skipping task')
         yield task
 
 
