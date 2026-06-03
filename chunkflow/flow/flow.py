@@ -1586,6 +1586,8 @@ def save_zarr(tasks, store: str, path: str, shape: tuple, resolution: tuple, mip
 @click.option('--layer-type', '-l',
     type=click.Choice(['image', 'segmentation']), default=None,
     help='the layer type in neuroglancer for visualization.')
+@click.option('--infer-chunk/--no-infer-chunk', '-i', default=False,
+              help='infer chunk cutout boundaries from other chunks.')
 @click.option('--voxel-offset', '-v',
     type=click.INT, nargs=3, default=None, callback=default_none,
     help='voxel offset of the dataset in hdf5 file.')
@@ -1611,7 +1613,7 @@ def save_zarr(tasks, store: str, path: str, shape: tuple, resolution: tuple, mip
               help='chunk name in the global state')
 @operator
 def load_h5(tasks, name: str, file_name: str, dataset_path: str,
-            dtype: str, layer_type: str, voxel_offset: tuple,
+            dtype: str, layer_type: str, infer_chunk: bool, voxel_offset: tuple,
             voxel_size: tuple, channels: str, cutout_bbox: str,
             cutout_start: tuple, cutout_stop: tuple, cutout_size: tuple,
             set_bbox: bool, remove_empty: bool, output_chunk_name: str):
@@ -1619,6 +1621,26 @@ def load_h5(tasks, name: str, file_name: str, dataset_path: str,
     for task in tasks:
         if task is not None:
             start = time()
+
+            if infer_chunk:
+                if any(v is not None for v in [voxel_offset]):
+                    raise ValueError('infer_chunk and voxel_offset parameter can not be used at the same time.')
+                if 'bbox' in task:
+                    chunk_bbox = task['bbox']
+                    if voxel_offset is None:
+                        voxel_offset = chunk_bbox.start
+                else:
+                    chunk = None
+                    for key in task:
+                        if isinstance(task[key], Chunk):
+                            chunk = task[key]
+                            break
+                    if chunk is not None:
+                        chunk_bbox = chunk.bbox
+                        if voxel_offset is None:
+                            voxel_offset = chunk.voxel_offset
+                        if voxel_size is None:
+                            voxel_size = chunk.voxel_size
 
             file_name_tmp = file_name
             bbox = None
@@ -1666,6 +1688,16 @@ def load_h5(tasks, name: str, file_name: str, dataset_path: str,
                 chunk = chunk.astype(dtype)
 
             task[output_chunk_name] = chunk
+            if chunk.layer_type == 'segmentation' and chunk.ndim == 4:
+                chan_dim = [i for i, s in enumerate(chunk.shape) if s == 1]
+                assert len(chan_dim) == 1
+                chan_dim = chan_dim[0]
+                if chan_dim == 0:
+                    chunk.array = chunk.array[0, :, :, :]
+                elif chan_dim == 3:
+                    chunk.array = chunk.array[:, :, :, 0]
+                else:
+                    raise RuntimeError("Unexpected channel dimension")
             # make a bounding box for others operators to follow
             if set_bbox and chunk is not None:
                 task['bbox'] = chunk.bbox
