@@ -392,7 +392,8 @@ class Chunk(NDArrayOperatorsMixin):
 
             if bbox is not None:
                 bbox_slices = (bbox - voxel_offset).slices
-                chunk_offset = (bbox - voxel_offset).start
+                # chunk_offset = (bbox - voxel_offset).start  # Did 
+                chunk_offset = bbox.start
                 arr = arr[bbox_slices]
             else:
                 chunk_offset = voxel_offset
