@@ -218,7 +218,10 @@ class LoadPrecomputedOperator(OperatorBase):
             arr = np.zeros((*xyz_size, num_channels), dtype=self._dtype)
         else:
             try:
-                arr = self.volume[tuple(crop_slices)].read().result()
+                # TensorStore dataset.read() reads in C order by default, despite
+                # precomputed format encoding in Fortran order. Make it consistent
+                # by specifying Fortran-order read.
+                arr = self.volume[tuple(crop_slices)].read(order='F').result()
             except Exception as e:
                 # neuroglancer_precomputed doesn't support fill_value, so a
                 # missing chunk within the domain raises here. Mirror
@@ -274,7 +277,7 @@ class LoadPrecomputedOperator(OperatorBase):
                 read_slices.append(slice(read_lo, read_hi))
                 out_slices.append(slice(read_lo - sl.start, read_hi - sl.start))
             try:
-                chunk_arr = self.volume[tuple(read_slices)].read().result()
+                chunk_arr = self.volume[tuple(read_slices)].read(order='F').result()
             except Exception:
                 # leave the corresponding region of arr as zeros
                 continue
